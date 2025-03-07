@@ -17,7 +17,13 @@ client.once('ready', async () => {
     console.log(`✅ Bot ${client.user.tag} is online!`);
 
     const channel = await client.channels.fetch(CHANNEL_ID);
-    if (channel) {
+    if (!channel) return console.log('⚠️ Channel tidak ditemukan!');
+
+    // **Cek apakah sudah ada pesan embed sebelumnya**
+    const messages = await channel.messages.fetch({ limit: 10 }); // Ambil 10 pesan terakhir
+    const existingMessage = messages.find(msg => msg.embeds.length > 0 && msg.embeds[0].title === '🎨 Katalog Warna');
+
+    if (!existingMessage) {
         // Buat embed pesan
         const embed = new EmbedBuilder()
             .setTitle('🎨 Katalog Warna')
@@ -40,8 +46,9 @@ client.once('ready', async () => {
             );
 
         await channel.send({ embeds: [embed], components: [row] });
+        console.log('✅ Embed role menu berhasil dikirim!');
     } else {
-        console.log('⚠️ Channel tidak ditemukan!');
+        console.log('⏩ Pesan role menu sudah ada, tidak dikirim ulang.');
     }
 });
 
@@ -57,18 +64,6 @@ client.on('interactionCreate', async (interaction) => {
         // Cek role bot sendiri
         const botRole = guild.members.me.roles.highest;
 
-        // Role default "Viewers Elgis"
-        let defaultRole = guild.roles.cache.find(role => role.name === "Viewers Elgis");
-        if (!defaultRole) {
-            defaultRole = await guild.roles.create({
-                name: "Viewers Elgis",
-                color: 0xffffff, // Putih
-                position: botRole.position - 1, // Pastikan role lebih rendah dari bot
-                reason: "Role default untuk semua anggota"
-            });
-            console.log("✅ Role 'Viewers Elgis' dibuat!");
-        }
-
         // Warna role berdasarkan pilihan
         const colors = {
             BLUE: 0x3498db,
@@ -78,6 +73,18 @@ client.on('interactionCreate', async (interaction) => {
             DARK_GREY: 0x2f3136
         };
 
+        // Dapatkan semua role warna yang mungkin ada
+        const colorRoles = Object.keys(colors).map(colorName => 
+            guild.roles.cache.find(role => role.name.toUpperCase() === colorName)
+        ).filter(role => role && member.roles.cache.has(role.id)); // Pastikan hanya yang dimiliki oleh member
+
+        // Cek apakah bot memiliki izin mengelola role
+        if (!guild.members.me.permissions.has(PermissionsBitField.Flags.ManageRoles)) {
+            console.log("⚠️ Bot tidak memiliki izin untuk mengelola role!");
+            return interaction.reply({ content: "⚠️ Saya tidak memiliki izin untuk mengelola role!", ephemeral: true });
+        }
+
+        // Cek apakah role dengan warna yang dipilih sudah ada, jika tidak buat baru
         let role = guild.roles.cache.find(role => role.name.toUpperCase() === selectedColor);
         if (!role) {
             role = await guild.roles.create({
@@ -90,20 +97,12 @@ client.on('interactionCreate', async (interaction) => {
             console.log(`✅ Role warna ${selectedColor} dibuat!`);
         }
 
-        // **Hindari error: Periksa apakah bot memiliki izin sebelum mengubah role**
-        if (!guild.members.me.permissions.has(PermissionsBitField.Flags.ManageRoles)) {
-            console.log("⚠️ Bot tidak memiliki izin untuk mengelola role!");
-            return interaction.reply({ content: "⚠️ Saya tidak memiliki izin untuk mengelola role!", ephemeral: true });
-        }
-
-        // Hapus role warna lain sebelum menambahkan yang baru
-        const colorRoles = Object.values(colors).map(colorHex => 
-            guild.roles.cache.find(r => r.color === colorHex)
-        ).filter(r => r);
-
         try {
-            await member.roles.remove(colorRoles);
-            await member.roles.add(role);
+            // Hapus semua role warna sebelumnya dan tambahkan yang baru
+            await Promise.all([
+                member.roles.remove(colorRoles),
+                member.roles.add(role)
+            ]);
             await interaction.reply({ content: `✅ Anda mendapatkan role **${role.name}**!`, ephemeral: true });
         } catch (error) {
             console.error("❌ Gagal mengubah role:", error);
