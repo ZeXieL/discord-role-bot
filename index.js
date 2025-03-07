@@ -54,12 +54,16 @@ client.on('interactionCreate', async (interaction) => {
         const member = await guild.members.fetch(interaction.user.id);
         const selectedColor = interaction.values[0];
 
+        // Cek role bot sendiri
+        const botRole = guild.members.me.roles.highest;
+
         // Role default "Viewers Elgis"
         let defaultRole = guild.roles.cache.find(role => role.name === "Viewers Elgis");
         if (!defaultRole) {
             defaultRole = await guild.roles.create({
                 name: "Viewers Elgis",
                 color: 0xffffff, // Putih
+                position: botRole.position - 1, // Pastikan role lebih rendah dari bot
                 reason: "Role default untuk semua anggota"
             });
             console.log("✅ Role 'Viewers Elgis' dibuat!");
@@ -79,16 +83,17 @@ client.on('interactionCreate', async (interaction) => {
             role = await guild.roles.create({
                 name: selectedColor.charAt(0).toUpperCase() + selectedColor.slice(1).toLowerCase(),
                 color: colors[selectedColor],
+                position: botRole.position - 1, // Pastikan role lebih rendah dari bot
                 permissions: [],
                 reason: `Role warna ${selectedColor} dipilih`
             });
             console.log(`✅ Role warna ${selectedColor} dibuat!`);
         }
 
-        // Pastikan role warna memiliki prioritas tinggi
-        const botRole = guild.members.me.roles.highest;
-        if (role.position < botRole.position) {
-            await role.setPosition(botRole.position - 1);
+        // **Hindari error: Periksa apakah bot memiliki izin sebelum mengubah role**
+        if (!guild.members.me.permissions.has(PermissionsBitField.Flags.ManageRoles)) {
+            console.log("⚠️ Bot tidak memiliki izin untuk mengelola role!");
+            return interaction.reply({ content: "⚠️ Saya tidak memiliki izin untuk mengelola role!", ephemeral: true });
         }
 
         // Hapus role warna lain sebelum menambahkan yang baru
@@ -96,10 +101,14 @@ client.on('interactionCreate', async (interaction) => {
             guild.roles.cache.find(r => r.color === colorHex)
         ).filter(r => r);
 
-        await member.roles.remove(colorRoles);
-        await member.roles.add(role);
-
-        await interaction.reply({ content: `✅ Anda mendapatkan role **${role.name}**!`, flags: 64 });
+        try {
+            await member.roles.remove(colorRoles);
+            await member.roles.add(role);
+            await interaction.reply({ content: `✅ Anda mendapatkan role **${role.name}**!`, ephemeral: true });
+        } catch (error) {
+            console.error("❌ Gagal mengubah role:", error);
+            await interaction.reply({ content: "❌ Saya tidak bisa mengubah role Anda. Pastikan role saya lebih tinggi!", ephemeral: true });
+        }
     }
 });
 
