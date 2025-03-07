@@ -107,7 +107,7 @@ client.on('interactionCreate', async (interaction) => {
     await member.roles.add(defaultRole).catch(() => {});
     await member.roles.add(role).catch(() => {});
 
-    await interaction.reply({ content: `✅ Anda mendapatkan role **${role.name}**!`, ephemeral: true });
+    await interaction.reply({ content: `✅ Anda mendapatkan role **${role.name}**!`, flags: 64 });
 });
 
 // Jalankan bot
