@@ -73,10 +73,8 @@ client.on('interactionCreate', async (interaction) => {
             DARK_GREY: 0x2f3136
         };
 
-        // Dapatkan semua role warna yang mungkin ada
-        const colorRoles = Object.keys(colors).map(colorName => 
-            guild.roles.cache.find(role => role.name.toUpperCase() === colorName)
-        ).filter(role => role && member.roles.cache.has(role.id)); // Pastikan hanya yang dimiliki oleh member
+        // **Hanya hapus role warna yang dimiliki user**
+        const colorRoles = member.roles.cache.filter(role => Object.keys(colors).includes(role.name.toUpperCase()));
 
         // Cek apakah bot memiliki izin mengelola role
         if (!guild.members.me.permissions.has(PermissionsBitField.Flags.ManageRoles)) {
@@ -98,11 +96,9 @@ client.on('interactionCreate', async (interaction) => {
         }
 
         try {
-            // Hapus semua role warna sebelumnya dan tambahkan yang baru
-            await Promise.all([
-                member.roles.remove(colorRoles),
-                member.roles.add(role)
-            ]);
+            // Hapus hanya role warna yang dimiliki sebelum menambahkan yang baru
+            await member.roles.remove(colorRoles);
+            await member.roles.add(role);
             await interaction.reply({ content: `✅ Anda mendapatkan role **${role.name}**!`, ephemeral: true });
         } catch (error) {
             console.error("❌ Gagal mengubah role:", error);
